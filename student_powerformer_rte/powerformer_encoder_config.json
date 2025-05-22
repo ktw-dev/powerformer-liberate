@@ -1,0 +1,15 @@
+{
+  "hidden_size": 128,
+  "num_attention_heads": 2,
+  "intermediate_size": 512,
+  "num_hidden_layers": 2,
+  "brpmax": {
+    "p": 2,
+    "c": 2.0,
+    "inv_Rd": 0.03125
+  },
+  "relu_poly": {
+    "a1": 0.5,
+    "a3": 0.125
+  }
+}
