@@ -1,16 +1,16 @@
 """
-이 파일은 client.py와 server.py를 실행하는 파일입니다.
+이 파일은 client.py와 server.py를 실행하는 파일이다.
 
-client.py는 클라이언트를 실행하는 파일입니다.
-server.py는 서버를 실행하는 파일입니다.
+client.py는 클라이언트를 실행하는 파일이다.
+server.py는 서버를 실행하는 파일이다.
 
-client.py를 실행하면 추론을 위해 임베딩된 문장과 pk, evk를 서버로 전송합니다.
-server.py는 클라이언트로부터 받은 데이터를 복호화하고 추론을 수행합니다.
-추론 결과는 클라이언트로 반환됩니다.
+client.py를 실행하면 추론을 위해 임베딩된 문장과 pk, evk를 서버로 전송한다.
+server.py는 클라이언트로부터 받은 데이터를 복호화하고 추론을 수행한다.
+추론 결과는 클라이언트로 반환된다.
 """
 
 import client
-import server # server.py가 있다고 가정합니다.
+import server
 import os
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"  # CUDA 연산을 동기식으로 만들어 디버깅 용이
 os.environ['TORCH_USE_CUDA_DSA'] = "1"    # 디바이스 측 어설션 활성화

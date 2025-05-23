@@ -5,11 +5,7 @@ import liberate.fhe as fhe
 from typing import Dict, List
 import numpy as np
 from pathlib import Path
-# import torch # 로깅을 위해 torch 임포트 # Removed
-# import os # __file__ 사용을 위해 os 임포트 # Removed
-# import traceback # 예외 처리를 위해 traceback 임포트 # Removed
 
-# SCRIPT_NAME = os.path.basename(__file__) # 파일명만 가져오기 # Removed
 
 def _interleave_heads(A, B):
     """(d,d) 두 행렬 → [a00,b00,a01,b01,…]  (row-major interleave)"""
@@ -19,61 +15,28 @@ def _interleave_heads(A, B):
     return out
 
 def _encode_col_blocks(mat_head1, mat_head2, engine, level=0):
-    # print(f"\\n--- {SCRIPT_NAME} --- Starting _encode_col_blocks. Received Engine ID: {id(engine)} ---") # Removed
-    # if torch.cuda.is_available(): # Removed
-    #     print(f"--- {SCRIPT_NAME} --- GPU Memory at start of _encode_col_blocks ---") # Removed
-    #     print(torch.cuda.memory_summary(device=0)) # Removed
 
     num_rows_per_head = mat_head1.shape[0]
     num_cols = mat_head1.shape[1]
     blocks = []
-    
-    # 테스트용 제로 배열 인코딩 로직은 현재 문제 분석 단계에서 혼란을 줄 수 있으므로 주석 처리합니다.
-    # (이전에 reproduce_bug.py에서 이 부분은 성공했었음)
-    # test_zero_array = np.zeros(2 * num_rows_per_head, dtype=np.float32)
 
     for j in range(num_cols):
         col_vec = np.empty(2 * num_rows_per_head, dtype=np.float32)
         col_vec[0::2] = mat_head1[:, j]
         col_vec[1::2] = mat_head2[:, j]
         
-        # if j == 0: 
-        #     print(f"--- {SCRIPT_NAME} --- Diagnostic: Attempting to encode zero array (shape: {test_zero_array.shape}, dtype: {test_zero_array.dtype}) ---")
-        #     try:
-        #         engine.encode(test_zero_array, level=level, padding=False)
-        #         print(f"--- {SCRIPT_NAME} --- Diagnostic: Encoding zero array SUCCEEDED ---")
-        #     except Exception as e_diag:
-        #         print(f"--- {SCRIPT_NAME} --- Diagnostic: Encoding zero array FAILED with error: {e_diag} ---")
-
-        # print(f"--- {SCRIPT_NAME} --- _encode_col_blocks: Encoding column {j}. Engine ID: {id(engine)}. Padding=False ---") # Removed
-        # if torch.cuda.is_available(): # Removed
-        #     print(f"--- {SCRIPT_NAME} --- GPU Memory before engine.encode (col {j}, padding=False) ---") # Removed
-        #     print(torch.cuda.memory_summary(device=0)) # Removed
         try:
             encoded_block = engine.encode(col_vec, level=level, padding=False)
             blocks.append(encoded_block)
-            # print(f"--- {SCRIPT_NAME} --- _encode_col_blocks: Encoding column {j} SUCCEEDED.") # 성공 시 너무 많은 로그가 찍힐 수 있어 주석 처리
+
         except Exception as e_encode: # Keep basic error reporting for this critical function
             print(f"ERROR in _encode_col_blocks during engine.encode (col {j}, padding=False). Engine ID: {id(engine)}")
             print(f"Error details: {e_encode}")
-            # if torch.cuda.is_available(): # Removed GPU specific logging from error
-            #     print(f"--- {SCRIPT_NAME} --- GPU Memory AT POINT OF FAILURE (padding=False, col {j}) ---") # Removed
-            #     print(torch.cuda.memory_summary(device=0)) # Removed
-            # traceback.print_exc() # traceback import was removed, if needed, re-add import and this line
             raise
             
-    # print(f"--- {SCRIPT_NAME} --- Finished _encode_col_blocks. Engine ID: {id(engine)} ---") # Removed
-    # if torch.cuda.is_available(): # Removed
-    #     print(f"--- {SCRIPT_NAME} --- GPU Memory at end of _encode_col_blocks ---") # Removed
-    #     print(torch.cuda.memory_summary(device=0)) # Removed
     return blocks
 
 def load_layer_weights(layer_dir: str, engine) -> dict:
-    # print(f"\\n--- {SCRIPT_NAME} --- Starting load_layer_weights for {layer_dir}. Received Engine ID: {id(engine)} ---") # Removed
-    # if torch.cuda.is_available(): # Removed
-    #     print(f"--- {SCRIPT_NAME} --- GPU Memory at start of load_layer_weights for {layer_dir} ---") # Removed
-    #     print(torch.cuda.memory_summary(device=0)) # Removed
-
     p = Path(layer_dir)
     WQ = np.load(p/'WQ.npy'); WK = np.load(p/'WK.npy'); WV = np.load(p/'WV.npy')
     WO = np.load(p/'WO.npy'); W1 = np.load(p/'W1.npy'); W2 = np.load(p/'W2.npy')
@@ -83,30 +46,20 @@ def load_layer_weights(layer_dir: str, engine) -> dict:
     WV1, WV2 = np.split(WV, 2, axis=0)
     WO1, WO2 = np.split(WO, 2, axis=1)
 
-    # 각 가중치 인코딩 전후로 메모리 로깅 추가 가능 (매우 상세해질 수 있음)
-    # print(f"--- {SCRIPT_NAME} --- Encoding WQ, WK, WV for {layer_dir}. Engine ID: {id(engine)} ---") # Removed
     wq_blocks = _encode_col_blocks(WQ1, WQ2, engine) # level=0 is default
     wk_blocks = _encode_col_blocks(WK1, WK2, engine)
     wv_blocks = _encode_col_blocks(WV1, WV2, engine)
     
-    # print(f"--- {SCRIPT_NAME} --- Encoding WO, W1, W2 (padding=False) for {layer_dir}. Engine ID: {id(engine)} ---") # Removed
-    # if torch.cuda.is_available(): print(f"--- {SCRIPT_NAME} --- GPU Memory before WO encode --- ({layer_dir})"); print(torch.cuda.memory_summary(device=0)) # Removed
     wo_pt = engine.encode(_interleave_heads(WO1, WO2), level=0, padding=False)
-    # if torch.cuda.is_available(): print(f"--- {SCRIPT_NAME} --- GPU Memory after WO encode, before W1 encode --- ({layer_dir})"); print(torch.cuda.memory_summary(device=0)) # Removed
+
     w1_pt = engine.encode(_interleave_heads(W1, W1),  level=0, padding=False)
-    # if torch.cuda.is_available(): print(f"--- {SCRIPT_NAME} --- GPU Memory after W1 encode, before W2 encode --- ({layer_dir})"); print(torch.cuda.memory_summary(device=0)) # Removed
+
     w2_pt = engine.encode(_interleave_heads(W2, W2),  level=0, padding=False)
-    # if torch.cuda.is_available(): print(f"--- {SCRIPT_NAME} --- GPU Memory after W2 encode --- ({layer_dir})"); print(torch.cuda.memory_summary(device=0)) # Removed
 
-    # print(f"--- {SCRIPT_NAME} --- Encoding LN1, LN2 (padding unspecified, defaults likely True) for {layer_dir}. Engine ID: {id(engine)} ---") # Removed
-    # engine.encode의 padding 기본값은 True일 가능성이 높음 (라이브러리 확인 필요)
-    # 만약 여기가 padding=False로 문제를 일으킨다면, 명시적으로 padding=True로 바꿔보는 것도 방법
-    # if torch.cuda.is_available(): print(f"--- {SCRIPT_NAME} --- GPU Memory before LN1 encode --- ({layer_dir})"); print(torch.cuda.memory_summary(device=0)) # Removed
     ln1_pt = engine.encode(np.load(p/'ln_attn.npy').reshape(-1), level=0) # padding 안씀 (기본값 사용)
-    # if torch.cuda.is_available(): print(f"--- {SCRIPT_NAME} --- GPU Memory after LN1 encode, before LN2 encode --- ({layer_dir})"); print(torch.cuda.memory_summary(device=0)) # Removed
-    ln2_pt = engine.encode(np.load(p/'ln_ffn.npy' ).reshape(-1), level=0) # padding 안씀 (기본값 사용)
-    # if torch.cuda.is_available(): print(f"--- {SCRIPT_NAME} --- GPU Memory after LN2 encode --- ({layer_dir})"); print(torch.cuda.memory_summary(device=0)) # Removed
 
+    ln2_pt = engine.encode(np.load(p/'ln_ffn.npy' ).reshape(-1), level=0) # padding 안씀 (기본값 사용)
+    
     weights = {
         "WQ": wq_blocks,
         "WK": wk_blocks,
@@ -117,10 +70,6 @@ def load_layer_weights(layer_dir: str, engine) -> dict:
         "LN1": ln1_pt,
         "LN2": ln2_pt,
     }
-    # print(f"--- {SCRIPT_NAME} --- Finished load_layer_weights for {layer_dir}. Engine ID: {id(engine)} ---") # Removed
-    # if torch.cuda.is_available(): # Removed
-    #     print(f"--- {SCRIPT_NAME} --- GPU Memory at end of load_layer_weights for {layer_dir} ---") # Removed
-    #     print(torch.cuda.memory_summary(device=0)) # Removed
     return weights
 
 class PowerformerEncoder:
@@ -139,10 +88,6 @@ class PowerformerEncoder:
     """
 
     def __init__(self, engine, evk, params, w):
-        # print(f"\\n--- {SCRIPT_NAME} --- Initializing PowerformerEncoder instance. Engine ID: {id(engine)} ---") # Removed
-        # if torch.cuda.is_available(): # Removed
-        #     print(f"--- {SCRIPT_NAME} --- GPU Memory at start of PowerformerEncoder __init__ ---") # Removed
-        #     print(torch.cuda.memory_summary(device=0)) # Removed
         self.engine, self.evk = engine, evk
         # ── 상수 ────────────────────────────────────────────────
         self.p_brpmax, self.c_brpmax, self.inv_Rd_brpmax = params["brpmax"].values()
@@ -197,12 +142,7 @@ class PowerformerEncoder:
         )
         self._pt_threehalf = self.engine.encode(
             np.full(slots_per_row * d, self.threehalf_val, np.float32), level=0, padding=False
-        )
-
-        # print(f"--- {SCRIPT_NAME} --- Finished PowerformerEncoder __init__. Engine ID: {id(self.engine)} ---") # Removed
-        # if torch.cuda.is_available(): # Removed
-        #     print(f"--- {SCRIPT_NAME} --- GPU Memory at end of PowerformerEncoder __init__ ---") # Removed
-        #     print(torch.cuda.memory_summary(device=0)) # Removed
+        )   
 
     # ------------------------------------------------------------------ #
     # public API
@@ -249,7 +189,7 @@ class PowerformerEncoder:
         return ct_out
 
     # ------------------------------------------------------------------ #
-    # 내부 helper (스텁)  –  실제 구현 시 Liberate 연산으로 채우기
+    # 내부 method
     # ------------------------------------------------------------------ #
     def _constrec_mm(self, ct_in, pt_blocks):
         # -----------------------------------------------------------
@@ -565,8 +505,4 @@ class PowerformerEncoder:
     def _bootstrap_if_needed(self, ct):
         """층당 1 회 부트스트랩 (Liberate 0.x는 rescale+level_up 사용)"""
         # TODO: check level, then call engine.level_up(ct, target_level) or a bootstrap function
-        # Example: if ct.level >= self.engine.num_levels - 1: # or some threshold
-        #              ct = self.engine.level_up(ct, 0) # Reset to level 0
-        # Actual bootstrap function might not be available or named 'bootstrap'
-        # For now, this remains a pass-through.
         return ct

@@ -2,7 +2,7 @@
 distill_powerformer_rte.py
 ──────────────────────────
 교사:  ./final-model/bert-base-finetuned-rte
-학생:  BERT-tiny  +  PowerformerEncoder  (이미 구현되어 있다고 가정)
+학생:  BERT-tiny  +  PowerformerEncoder
       └── ff_layers: PolyReLU
       └── attn:      BRPmax + HE-friendly matmul
 
